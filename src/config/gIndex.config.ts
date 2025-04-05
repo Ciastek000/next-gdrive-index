@@ -1,15 +1,14 @@
-import { z } from "zod";
+import { type z } from "zod";
+import { BASE_URL, IS_DEV } from "~/constant";
 
-import { isDev } from "~/utils/isDev";
-
-import { Schema_Config } from "~/types/schema";
+import { type Schema_Config } from "~/types/schema";
 
 const config: z.input<typeof Schema_Config> = {
   /**
    * If possible, please don't change this value
    * Even if you're creating a PR, just let me change it myself
    */
-  version: "2.0.3",
+  version: "2.4.2",
   /**
    * Base path of the app, used for generating links
    *
@@ -18,29 +17,25 @@ const config: z.input<typeof Schema_Config> = {
    * @default process.env.NEXT_PUBLIC_DOMAIN
    * @fallback process.env.NEXT_PUBLIC_VERCEL_URL
    */
-  basePath: isDev
-    ? "http://localhost:3000"
-    : `https://${process.env.NEXT_PUBLIC_DOMAIN || process.env.NEXT_PUBLIC_VERCEL_URL}`,
+  basePath: IS_DEV ? "http://localhost:3000" : `https://${BASE_URL}`,
 
   /**
-   * Allow access to the deploy guide
-   * Will use the `/deploy` route, might be overlap with file / folder name
+   * Show deploy guide dropdown on navbar
+   * that contains the deploy guide and configurator
    *
-   * Set this to false on final deployment
-   *
-   * I'm using this to show the deploy guide on my own demo deployment
+   * Set this to false on final deployment, except you want to show it
    *
    * @default false
    */
-  showDeployGuide: true,
+  showGuideButton: false,
 
   /**
    * How long the cache will be stored in the browser
    * Used for all pages and api routes
    *
-   * @default "max-age=0, s-maxage=60, stale-while-revalidate"
+   * @default "public, max-age=60, s-maxage=60, stale-while-revalidate"
    */
-  cacheControl: "max-age=0, s-maxage=60, stale-while-revalidate",
+  cacheControl: "public, max-age=60, s-maxage=60, stale-while-revalidate",
 
   apiConfig: {
     /**
@@ -51,7 +46,8 @@ const config: z.input<typeof Schema_Config> = {
      * You need to create a new folder and share it with the service account
      * Then, copy the folder id and paste it here
      */
-    rootFolder: "b76c7c22083307a3aa99c28ab7cc69851d682f5a250d995679d4be5276cab16ab6c37f4d5b7ad1a9b93fb9bf768e752c",
+    rootFolder:
+      "6c3795afaabc0a48894c69379cad195331cba1b45927c4328d90ea698b405aeaa8013e6a03570b11a1b3ed31ea04126bf6;33ad4bdda6a4327f46d910ea",
 
     /**
      * If your rootfolder inside a shared drive, you NEED to set this to true
@@ -66,15 +62,39 @@ const config: z.input<typeof Schema_Config> = {
      *
      * Then you need to encrypt it using `/api/internal/encrypt?q=:shared_drive_id` route
      */
-    isTeamDrive: true,
-    sharedDrive: "77bfa156c9c9d159112fcb0494ed8545bdaf7a3d567cd760ba2e2e2cd33fcbfc",
+    isTeamDrive: false,
+    sharedDrive: "",
 
     defaultQuery: ["trashed = false", "(not mimeType contains 'google-apps' or mimeType contains 'folder')"],
     defaultField:
       "id, name, mimeType, thumbnailLink, fileExtension, modifiedTime, size, imageMediaMetadata, videoMediaMetadata, webContentLink, trashed",
     defaultOrder: "folder, name asc, modifiedTime desc",
-    itemsPerPage: 50,
-    searchResult: 5,
+    itemsPerPage: 100,
+    searchResult: 30,
+
+    /**
+     * Special file name that will be used for certain purposes
+     * These files will be ignored when searching for files
+     * and will be hidden from the files list by default
+     */
+    specialFile: {
+      password: ".password",
+      readme: ".readme.md",
+      /**
+       * Banner will be used for opengraph image for folder
+       * By default, all folder will use default og image
+       */
+      banner: "https://i.imgur.com/c9Ye9DT.png",
+    },
+    /**
+     * Reason why banner has multiple extensions:
+     * - If I use contains query, it will also match the file or folder that contains the word.
+     *   (e.g: File / folder with the name of "Test Password" will be matched)
+     * - If I use = query, it will only match the exact name, hence the multiple extensions
+     *
+     * You can add more extensions if you want
+     */
+    hiddenFiles: [".password", ".readme.md", ".banner", ".banner.jpg", ".banner.png", ".banner.webp"],
 
     /**
      * By default, the app will use the thumbnail URL from Google Drive
@@ -104,31 +124,20 @@ const config: z.input<typeof Schema_Config> = {
      *
      * Default: 100MB
      */
-    streamMaxSize: 100 * 1024 * 1024,
+    streamMaxSize: 0,
 
     /**
-     * Special file name that will be used for certain purposes
-     * These files will be ignored when searching for files
-     * and will be hidden from the files list by default
-     */
-    specialFile: {
-      password: ".password",
-      readme: ".readme.md",
-      /**
-       * Banner will be used for opengraph image for folder
-       * By default, all folder will use default og image
-       */
-      banner: ".banner",
-    },
-    /**
-     * Reason why banner has multiple extensions:
-     * - If I use contains query, it will also match the file or folder that contains the word.
-     *   (e.g: File / folder with the name of "Test Password" will be matched)
-     * - If I use = query, it will only match the exact name, hence the multiple extensions
+     * Maximum file size that can be downloaded via api routes
+     * If it's larger than this, it will be redirected to the file url
      *
-     * You can add more extensions if you want
+     * If you're using Vercel, they have a limit of ~4 - ~4.5MB response size
+     * ref: https://vercel.com/docs/functions/runtimes#request-body-size
+     * If you're using another platform, you can match the limit with your platform
+     * Or you can set this to 0 to disable the limit
+     *
+     * Default: 4MB
      */
-    hiddenFiles: [".password", ".readme.md", ".banner", ".banner.jpg", ".banner.png", ".banner.webp"],
+    maxFileSize: 4194304,
 
     /**
      * Allow user to download protected file without password.
@@ -137,7 +146,8 @@ const config: z.input<typeof Schema_Config> = {
      *
      * Default: false
      */
-    allowDownloadProtectedFile: false,
+    allowDownloadProtectedFile: true,
+
     /**
      * Duration in hours.
      * In version 2, this will be used for download link expiration.
@@ -148,22 +158,9 @@ const config: z.input<typeof Schema_Config> = {
      * After 30 minutes, and the user still downloading the file, the download will NOT be interrupted
      * But if the user refresh the page / trying to download again, the download link will be expired
      *
-     * Default: 6 hours
+     * Default: 1 hour
      */
     temporaryTokenDuration: 6,
-
-    /**
-     * Maximum file size that can be downloaded via api routes
-     * If it's larger than this, it will be redirected to the file url
-     *
-     * If you're using Vercel, they have a limit of ~4 - ~4.5MB response size
-     * ref: https://vercel.com/docs/platform/limits#serverless-function-payload-size-limit
-     * If you're using another platform, you can match the limit with your platform
-     * Or you can set this to 0 to disable the limit
-     *
-     * Default: 4MB
-     */
-    maxFileSize: 4 * 1024 * 1024,
   },
 
   siteConfig: {
@@ -175,11 +172,11 @@ const config: z.input<typeof Schema_Config> = {
      *
      * You can set it to undefined if you don't want to use it
      */
-    siteName: "next-gdrive-index",
+    siteName: "Park Rozrywki",
     siteNameTemplate: "%s - %t",
-    siteDescription: "A simple file browser for Google Drive",
+    siteDescription: "Serwer na którym możesz znaleźć dużą bibliotekę kreskówek do obejrzenia w dobrej jakości ZA DARMO (i nie tylko).",
     siteIcon: "/logo.svg",
-    siteAuthor: "mbaharip",
+    siteAuthor: "ParkRozrywki",
     favIcon: "/favicon.png",
     /**
      * Next.js Metadata robots object
@@ -187,7 +184,7 @@ const config: z.input<typeof Schema_Config> = {
      * ref: https://nextjs.org/docs/app/api-reference/functions/generate-metadata#robots
      */
     robots: "noindex, nofollow",
-    twitterHandle: "@mbaharip_",
+    twitterHandle: "",
 
     /**
      * Show file extension on the file name
@@ -198,25 +195,7 @@ const config: z.input<typeof Schema_Config> = {
      *
      * Default: false
      */
-    showFileExtension: false,
-
-    /**
-     * Footer content
-     * You can also set it to empty array if you don't want to use it
-     *
-     * Basic markdown is supported (bold, italic, and link)
-     * External link will be opened in new tab
-     *
-     * Template:
-     * - {{ year }} will be replaced with the current year
-     * - {{ repository }} will be replaced with the original repository link
-     * - {{ author }} will be replaced with author from siteAuthor config above (If it's not set, it will be set to mbaharip)
-     * - {{ version }} will be replaced with the current version
-     * - {{ siteName }} will be replaced with the siteName config above
-     * - {{ handle }} will be replaced with the twitter handle from twitterHandle config above
-     * - {{ creator }} will be replaced with mbaharip if you want to credit me
-     */
-    footer: ["{{ siteName }} *v{{ version }}* @ {{ repository }}", "{{ year }} - Made with ❤️ by **{{ author }}**"],
+    showFileExtension: true,
 
     /**
      * Site wide password protection
@@ -245,6 +224,24 @@ const config: z.input<typeof Schema_Config> = {
     },
 
     /**
+     * Configuration for file preview
+     */
+    previewSettings: {
+      manga: {
+        /**
+         * Load first X MB of the file for preview
+         * or load first X items for preview
+         *
+         * @default
+         * maxSize: 15MB
+         * maxItem: 10 items
+         */
+        maxSize: 15 * 1024 * 1024,
+        maxItem: 10,
+      },
+    },
+
+    /**
      * Example item:
      * {
      *  icon: string, // icon name from lucide icons (https://lucide.dev/icons/)
@@ -254,24 +251,13 @@ const config: z.input<typeof Schema_Config> = {
      * }
      */
     navbarItems: [
-      {
-        icon: "FileText",
-        name: "Documentation",
-        href: "https://github.com/mbahArip/next-gdrive-index/wiki",
-        external: true,
-      },
-      {
-        icon: "Github",
-        name: "Github",
-        href: "https://www.github.com/mbaharip",
-        external: true,
-      },
-      {
-        icon: "Mail",
-        name: "Contact",
-        href: "mailto:support@mbaharip.com",
-      },
-    ],
+  {
+    "icon": "Link",
+    "name": "Discord",
+    "href": "https://discord.gg/H3EgyNABSP",
+    "external": false
+  }
+],
 
     /**
      * Add support / donation links on the navbar
@@ -282,23 +268,35 @@ const config: z.input<typeof Schema_Config> = {
      *  href: string,
      * }
      */
-    supports: [
-      {
-        name: "Paypal",
-        currency: "USD",
-        href: "https://paypal.me/mbaharip",
-      },
-      {
-        name: "Ko-fi",
-        currency: "USD",
-        href: "https://ko-fi.com/mbaharip",
-      },
-      {
-        name: "Saweria",
-        currency: "IDR",
-        href: "https://saweria.co/mbaharip",
-      },
-    ],
+    supports: [],
+
+    /**
+     * Footer content
+     * You can also set it to empty array if you don't want to use it
+     *
+     * Basic markdown is supported (bold, italic, and link)
+     * External link will be opened in new tab
+     *
+     * Template:
+     * - {{ year }} will be replaced with the current year
+     * - {{ repository }} will be replaced with the original repository link
+     * - {{ poweredBy }} will be replaced with "Powered by next-gdrive-index", linked to the repository
+     * - {{ author }} will be replaced with author from siteAuthor config above (If it's not set, it will be set to mbaharip)
+     * - {{ version }} will be replaced with the current version
+     * - {{ siteName }} will be replaced with the siteName config above
+     * - {{ handle }} will be replaced with the twitter handle from twitterHandle config above
+     * - {{ creator }} will be replaced with mbaharip if you want to credit me
+     */
+    footer: [
+  {
+    "value": "Miłego życzy [**{{ author }}**](https://discord.gg/H3EgyNABSP) ❤"
+  }
+],
+    /**
+     * Add page load time on the footer
+     * If you don't want to use it, you can set it to false
+     */
+    experimental_pageLoadTime: false,
   },
 };
 
